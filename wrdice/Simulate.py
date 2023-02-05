@@ -41,7 +41,7 @@ def Simulator(q_in, q_out):
 
 class Simulate:
     def __init__(self, army_a: Optional[Army], army_b: Optional[Army]):
-        self.N = 500
+        self.N = 2000
         self.army_a = army_a
         self.army_b = army_b
         self.battle_type = 'land'
@@ -55,6 +55,8 @@ class Simulate:
                                 'sea':[]}}
 
         self.metrics = {}
+        self.moving_stats = np.zeros(4)
+        self.moving_stats_last = np.zeros(4)
 
 
     def reset(self):
@@ -96,6 +98,34 @@ class Simulate:
         else:
             return None
 
+    def running_stats(self, status, eps=0.5):
+        if status == 0:
+            self.moving_stats[0] += 1
+        elif status == 1:
+            self.moving_stats[1] += 1
+        elif status == 2:
+            self.moving_stats[2] += 1
+        elif status == 3:
+            self.moving_stats[3] += 1
+
+        avg = np.divide(self.moving_stats , self.cur_n+1, out = np.zeros(4, dtype=float), where=self.moving_stats!=0)
+        avg_last = np.divide(self.moving_stats_last , self.cur_n, out = np.zeros(4, dtype=float), where=self.moving_stats!=0)
+        dev = np.abs(avg_last-avg)
+        print(avg)
+        if np.max(dev) < 0.01 and self.cur_n > 250:
+            self.moving_stats_last = self.moving_stats[:]
+            return True
+        else:
+            self.moving_stats_last = self.moving_stats[:]
+            return False
+
+
+
+
+
+
+
+
     def run(self, combat_system: CombatSystem, config=None) -> bool:
         troops_a, troops_b = 0, 0
         for T in ['sea', 'land', 'air']:
@@ -119,10 +149,12 @@ class Simulate:
 
 
         for n in tqdm(range(self.N)):
-            battle = Battle(copy.deepcopy(self.army_a), 
-                            copy.deepcopy(self.army_b),
+            self.cur_n = n
+            battle = Battle(copy.copy(self.army_a), 
+                            copy.copy(self.army_b),
                             config)
             status = battle.run(combat_system=combat_system)
+            #abrt = self.running_stats(status)
             self.statistics.append(status)
 
             for side in ['A', 'B']:
@@ -130,6 +162,8 @@ class Simulate:
                     self.survivors[side][type].append(battle.army[side].units[type])
                     if type == 'sea' and battle.army[side].submerged > 0:
                         self.survivors[side][type][-1][0] += battle.army[side].submerged
+            #if abrt:
+            #    break
         return True
 
 

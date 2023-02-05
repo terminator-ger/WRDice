@@ -92,6 +92,8 @@ class Battle:
         dice = self.options['batch_size'] if self.army[source].n_dice_air > self.options['batch_size'] else self.army[source].n_dice_air
         self.army[source].n_dice_air -= self.options['batch_size']
         self.army[source].n_dice_air = max(0, self.army[source].n_dice_air)
+        if dice == 0:
+            return
 
         roll = self.d12_batch.roll(dice)
 
@@ -136,6 +138,8 @@ class Battle:
         dice = self.options['batch_size'] if self.army[source].n_dice_ground > self.options['batch_size'] else self.army[source].n_dice_ground
         self.army[source].n_dice_ground -= self.options['batch_size']
         self.army[source].n_dice_ground = max(0, self.army[source].n_dice_ground)
+        if dice == 0:
+            return
 
         roll = self.d12_batch.roll(dice)
 
@@ -198,11 +202,12 @@ class Battle:
         
     def update_unit_count(self, target):
         # update unit count
-        for type in ['air', 'land', 'sea']:
-            with np.errstate(divide='ignore'):
-                div = np.divide(self.army[target].units_hp[type].T, self.options['hp'][type])
-            # fix divide by 0 hp
-            div[np.isnan(div)] = 0
+        units = ['air']
+        units += [self.battle_ground]
+        
+        for type in units:
+            div = np.divide(self.army[target].units_hp[type].T, self.options['hp'][type], 
+                            out=np.zeros(self.army[target].units_hp[type].T.shape, dtype=float), where=self.options['hp'][type]!=0)
             in_battle = np.ceil(div)
 
             # subs flee battle
@@ -329,8 +334,8 @@ class Battle:
             self.roll_air_and_apply_hits_wr2('A', 'B', batch)
             self.roll_air_and_apply_hits_wr2('B', 'A', batch)
 
-            self.update_unit_count('A')
-            self.update_unit_count('B')
+        self.update_unit_count('A')
+        self.update_unit_count('B')
         
         # update land combat strenght
         self.army['A'].update_dice_ground()
@@ -343,11 +348,12 @@ class Battle:
             self.roll_ground_and_apply_hits_wr2('A', 'B', batch)
             self.roll_ground_and_apply_hits_wr2('B', 'A', batch)
 
-            self.update_unit_count('A')
-            self.update_unit_count('B')
-
             if self.options['recheck_force_advantage']:
                 self.fa = self.get_force_advantage()
+
+        self.update_unit_count('A')
+        self.update_unit_count('B')
+
         
     def _print_armies(self):
         for type in ['land', 'sea', 'air']:

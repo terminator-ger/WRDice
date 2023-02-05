@@ -12,9 +12,8 @@ from wrdice.Simulate import Simulate
 
 
 
-
-
 if __name__ == '__main__':
+
     config = wr20_vaniilla_options
     NO_UNIT = [0,0,0,0,0]
     ALL_UNITS = [-1,-1,-1,-1,-1]
@@ -37,8 +36,7 @@ if __name__ == '__main__':
                     stance_air = [NO_UNIT,      ALL_UNITS],
                     stance_sea = [ALL_UNITS,    NO_UNIT])
     
-
     sim = Simulate(A, B)
-    if sim.run(combat_system=CombatSystem.WarRoomV2):
-        sim.eval_statistics()
-        print(sim.get_report())
+    sim.run(combat_system=CombatSystem.WarRoomV2)
+    sim.eval_statistics()
+    print(sim.get_report())

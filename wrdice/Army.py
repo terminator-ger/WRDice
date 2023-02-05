@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-
+import copy
 from wrdice.util import ListToNumpy, Strategy, STANCE, COLOR
 
 class Army:
@@ -18,7 +18,21 @@ class Army:
                          'ground' : None}
 
         self.options = options
+        self.n_dice_air = 0
+        self.n_dice_ground = 0
 
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.units = self.units.copy()
+        result.submerged = 0
+        result.units_by_stance = copy.deepcopy(self.units_by_stance)
+        result.n_dice_air = self.n_dice_air 
+        result.n_dice_ground = self.n_dice_ground
+        result.units_hp = self.units_hp.copy()
+        result.strategy = self.strategy
+        result.options = self.options
+        return result
 
     def set_config(self, config):
         self.options = config
