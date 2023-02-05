@@ -9,13 +9,17 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
 #subprocess.call(['make', '-C', 'src'])
 
 setup(name='WRDice',
-      version='0.0.1',
+      version='0.0.1.4a',
+      python_requires='>=3.8.10',
       description='Python simulator for war room battles',
       long_description=readme,
-      author='Geoff Hing',
+      author='theterminator',
       author_email='warroom@theterminator.e4ward.com',
       url='',
       packages=['wrdice'],
+      install_requires=['numpy', 
+                        'tqdm',
+                        ],
       classifiers=[
           'Development Status :: 1 - Planning',
           'Intended Audience :: Developers',

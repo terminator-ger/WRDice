@@ -1,8 +1,8 @@
 from wrdice.Army import Army
 from wrdice.D12Colored import D12Colored
 from wrdice.util import *
+
 import numpy as np
-import pdb
 import os
 import logging
 

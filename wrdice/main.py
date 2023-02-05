@@ -1,11 +1,5 @@
-import math
-from venv import create
 import numpy as np
-import copy
-import pdb
-from Simulate import Simulate
-from tqdm import tqdm
-from enum import Enum, auto, IntEnum
+
 
 from wrdice.D12Colored import D12Colored
 from wrdice.util import *
@@ -46,4 +40,5 @@ if __name__ == '__main__':
 
     sim = Simulate(A, B)
     if sim.run(combat_system=CombatSystem.WarRoomV2):
+        sim.eval_statistics()
         print(sim.get_report())

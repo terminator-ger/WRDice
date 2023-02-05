@@ -1,34 +1,51 @@
-import math
-from re import I
-from tkinter import W
-from venv import create
 import numpy as np
 import copy
-import pdb
+from typing import Optional
+
 from tqdm import tqdm
 from enum import Enum, auto, IntEnum
 from io import StringIO
 import os
 import logging
+import asyncio
 
 from wrdice.D12Colored import D12Colored
 from wrdice.util import *
 from wrdice.Army import Army
 from wrdice.Battle import Battle
 from wrdice.config import *
+import sys
 
+def start_sim(in_, out_):
+    asyncio.run(Simulator(in_, out_))
+
+def Simulator(q_in, q_out):
+    sim = Simulate(None, None)
+    print('Starting Simulator Process')
+    while True:
+        #n = q_in.coro_get()
+        n = q_in.get()
+        print('.')
+        if n == 'EXIT':
+            print('exit')
+            sys.exit()
+        else:
+            # new simulation
+            combat_system = n[0]
+            config = n[1]
+            army_a = n[2]
+            army_b = n[3]
+            sim.reset()
+            msg = sim.run_all(combat_system, config, army_a, army_b)
+        q_out.put(msg)
 
 class Simulate:
-    def __init__(self, army_a: Army, army_b: Army):
-        self.N = 1000
+    def __init__(self, army_a: Optional[Army], army_b: Optional[Army]):
+        self.N = 500
         self.army_a = army_a
         self.army_b = army_b
-
         self.battle_type = 'land'
-        if np.sum(army_a.units['sea']) + np.sum(army_b.units['sea']) > 0:
-            self.battle_type = 'sea'
-        
-        
+
         self.statistics = []
         self.survivors = {'A':{'land':[],
                                 'air':[],
@@ -40,6 +57,44 @@ class Simulate:
         self.metrics = {}
 
 
+    def reset(self):
+        self.battle_type = 'land'
+        self.army_a = None
+        self.army_b = None
+
+        self.statistics = []
+        self.survivors = {'A':{'land':[],
+                                'air':[],
+                                'sea':[]},
+                          'B':{'land':[],
+                                'air':[],
+                                'sea':[]}}
+
+        self.metrics = {}
+
+
+    def update_battle_type(self):
+        self.battle_type = 'land'
+        if self.army_a is not None and self.army_b is not None:
+            if np.sum(self.army_a.units['sea']) + np.sum(self.army_b.units['sea']) > 0:
+                self.battle_type = 'sea'
+        
+
+    def run_all(self, combat_system: CombatSystem, config=None,  armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> StringIO:
+        if armyA is not None:
+            self.army_a = armyA
+        if armyB is not None:
+            self.army_b = armyB
+
+        self.update_battle_type()
+
+        ret = self.run(combat_system, config)
+        if ret:
+            self.eval_statistics()
+            msg = self.get_report()
+            return msg
+        else:
+            return None
 
     def run(self, combat_system: CombatSystem, config=None) -> bool:
         troops_a, troops_b = 0, 0
@@ -75,7 +130,6 @@ class Simulate:
                     self.survivors[side][type].append(battle.army[side].units[type])
                     if type == 'sea' and battle.army[side].submerged > 0:
                         self.survivors[side][type][-1][0] += battle.army[side].submerged
-        self.eval_statistics()
         return True
 
 

@@ -1,7 +1,7 @@
 import numpy as np
-from wrdice.util import ListToNumpy, Strategy, STANCE, COLOR
-import pdb
 import logging
+
+from wrdice.util import ListToNumpy, Strategy, STANCE, COLOR
 
 class Army:
     def __init__(self, units_land, units_air, units_sea, options):
