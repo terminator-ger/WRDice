@@ -336,11 +336,14 @@ class Battle:
 
         self.update_unit_count('A')
         self.update_unit_count('B')
-        
+       
         # update land combat strenght
         self.army['A'].update_dice_ground()
         self.army['B'].update_dice_ground()
 
+        logging.debug(f"Army A dice {self.army['A'].n_dice_ground}")
+        logging.debug(f"Army B dice {self.army['B'].n_dice_ground}")
+        
         if self.options['batch_cap']:
             self.check_batch_cap()
 

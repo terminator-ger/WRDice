@@ -16,16 +16,15 @@ from wrdice.Battle import Battle
 from wrdice.config import *
 import sys
 
-def start_sim(in_, out_):
-    asyncio.run(Simulator(in_, out_))
+def start_sim(in_, out_, q_intermediate):
+    asyncio.run(Simulator(in_, out_, q_intermediate))
 
-def Simulator(q_in, q_out):
+def Simulator(q_in, q_out, q_intermediate):
     sim = Simulate(None, None)
     print('Starting Simulator Process')
     while True:
         #n = q_in.coro_get()
         n = q_in.get()
-        print('.')
         if n == 'EXIT':
             print('exit')
             sys.exit()
@@ -36,7 +35,7 @@ def Simulator(q_in, q_out):
             army_a = n[2]
             army_b = n[3]
             sim.reset()
-            msg = sim.run_all(combat_system, config, army_a, army_b)
+            msg = sim.run_all(combat_system, config, army_a, army_b, q_intermediate)
         q_out.put(msg)
 
 class Simulate:
@@ -55,8 +54,10 @@ class Simulate:
                                 'sea':[]}}
 
         self.metrics = {}
-        self.moving_stats = np.zeros(4)
-        self.moving_stats_last = np.zeros(4)
+        self.stats = np.zeros(4)
+        self.moving_std = np.zeros(4)
+        self.moving_mean  = np.zeros(4)
+        self.M2 = 0
 
 
     def reset(self):
@@ -71,7 +72,10 @@ class Simulate:
                           'B':{'land':[],
                                 'air':[],
                                 'sea':[]}}
-
+        self.stats = np.zeros(4)
+        self.moving_std = np.zeros(4)
+        self.moving_mean  = np.zeros(4)
+        self.M2 = 0
         self.metrics = {}
 
 
@@ -82,7 +86,7 @@ class Simulate:
                 self.battle_type = 'sea'
         
 
-    def run_all(self, combat_system: CombatSystem, config=None,  armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> StringIO:
+    def run_all(self, combat_system: CombatSystem, config=None,  armyA: Optional[Army]=None, armyB: Optional[Army]=None, q_intermediate=None) -> StringIO:
         if armyA is not None:
             self.army_a = armyA
         if armyB is not None:
@@ -90,7 +94,7 @@ class Simulate:
 
         self.update_battle_type()
 
-        ret = self.run(combat_system, config)
+        ret = self.run(combat_system, config, q_intermediate)
         if ret:
             self.eval_statistics()
             msg = self.get_report()
@@ -99,24 +103,28 @@ class Simulate:
             return None
 
     def running_stats(self, status, eps=0.5):
-        if status == 0:
-            self.moving_stats[0] += 1
-        elif status == 1:
-            self.moving_stats[1] += 1
-        elif status == 2:
-            self.moving_stats[2] += 1
-        elif status == 3:
-            self.moving_stats[3] += 1
+        self.stats[status] += 1
+        N = (self.cur_n + 1)
+        x = self.stats / N
 
-        avg = np.divide(self.moving_stats , self.cur_n+1, out = np.zeros(4, dtype=float), where=self.moving_stats!=0)
-        avg_last = np.divide(self.moving_stats_last , self.cur_n, out = np.zeros(4, dtype=float), where=self.moving_stats!=0)
-        dev = np.abs(avg_last-avg)
-        print(avg)
-        if np.max(dev) < 0.01 and self.cur_n > 250:
-            self.moving_stats_last = self.moving_stats[:]
+        self.moving_std  = self.moving_std + (x-self.moving_mean)**2
+        if N == 1:
+            self.moving_mean = x
+            return False
+
+
+        delta = x - self.moving_mean
+        self.moving_mean += delta / N
+
+        delta2 = x - self.moving_mean
+        self.M2 += delta * delta2
+        (mean, variance, sampleVariance) = (self.moving_mean, self.M2 / N, self.M2 / (N - 1))
+
+        if np.max(sampleVariance)**(1/2) < 0.01 and self.cur_n > 250:
+            self.moving_stats_last = self.moving_mean[:]
             return True
         else:
-            self.moving_stats_last = self.moving_stats[:]
+            self.moving_stats_last = self.moving_mean[:]
             return False
 
 
@@ -126,7 +134,7 @@ class Simulate:
 
 
 
-    def run(self, combat_system: CombatSystem, config=None) -> bool:
+    def run(self, combat_system: CombatSystem, config=None, q_intermediate=None) -> bool:
         troops_a, troops_b = 0, 0
         for T in ['sea', 'land', 'air']:
             troops_a += self.army_a.units[T].sum() 
@@ -154,7 +162,8 @@ class Simulate:
                             copy.copy(self.army_b),
                             config)
             status = battle.run(combat_system=combat_system)
-            #abrt = self.running_stats(status)
+            #print(status)
+            abrt = self.running_stats(status)
             self.statistics.append(status)
 
             for side in ['A', 'B']:
@@ -162,9 +171,28 @@ class Simulate:
                     self.survivors[side][type].append(battle.army[side].units[type])
                     if type == 'sea' and battle.army[side].submerged > 0:
                         self.survivors[side][type][-1][0] += battle.army[side].submerged
-            #if abrt:
-            #    break
+            if abrt:
+                break
+
+            if n % 50 == 0 and q_intermediate is not None and n != self.N and q_intermediate.empty():
+                q_intermediate.put(self.intermediate_statistics())
         return True
+
+    def intermediate_statistics(self):
+
+        N = (self.cur_n + 1)
+        x = self.stats / N
+        x[np.isnan(x)] = 0
+
+        report = StringIO(newline=os.linesep)
+
+        report.write(f"Results:{os.linesep}")
+        report.write(f"{'A Won:':<20}{x[0]:.2f}{os.linesep}")
+        report.write(f"{'B Won:':<20}{x[1]:.2f}{os.linesep}") 
+        report.write(f"{'Draw:':<20}{x[2]:.2f}{os.linesep}")
+        report.write(f"{'Mutual Annihilation:':<20}{x[3]:.2f}{os.linesep}")
+
+        return report.getvalue()
 
 
     def eval_statistics(self):
@@ -172,7 +200,7 @@ class Simulate:
         idx, count = np.unique(self.statistics, return_counts=True)
         stats = np.zeros(4)
         stats[idx] = count
-        stats /= self.N
+        stats /= (self.cur_n+1)
         self.statistics = np.array(self.statistics)
 
         self.survivors_a_ground = np.array(self.survivors['A'][self.battle_type])
@@ -289,16 +317,16 @@ class Simulate:
             str += f"{'AIR Red':<10}"
             buf.write(str+os.linesep)
             return buf.getvalue()
-       
+        N = self.cur_n+1
         report.write(f"Results:{os.linesep}")
-        report.write(f"{'A Won:':<20}{games_won_a / self.N:.2f}{os.linesep}")
-        report.write(f"{'B Won:':<20}{games_won_b / self.N:.2f}{os.linesep}") 
-        report.write(f"{'Draw:':<20}{games_draw / self.N:.2f}{os.linesep}")
-        report.write(f"{'Mutual Annihilation:':<20}{games_won_none / self.N:.2f}{os.linesep}")
+        report.write(f"{'A Won:':<20}{games_won_a / N:.2f}{os.linesep}")
+        report.write(f"{'B Won:':<20}{games_won_b / N:.2f}{os.linesep}") 
+        report.write(f"{'Draw:':<20}{games_draw /   N:.2f}{os.linesep}")
+        report.write(f"{'Mutual Annihilation:':<20}{games_won_none / N:.2f}{os.linesep}")
 
         if games_won_a > 0:
             report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
-            report.write(f"Army A Won - {games_won_a/self.N:.2f}{os.linesep}")
+            report.write(f"Army A Won - {games_won_a/N:.2f}{os.linesep}")
             report.write(print_legend())
             report.write(print_avg_surv(self.metrics['avg_surv_a'], id='AVG'))
             report.write("--------------------------------------------------------------"+os.linesep)
@@ -306,7 +334,7 @@ class Simulate:
 
         if games_won_b > 0:
             report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
-            report.write(f'Army B Won - {games_won_b/self.N:.2f}{os.linesep}')
+            report.write(f'Army B Won - {games_won_b/N:.2f}{os.linesep}')
             report.write(print_legend())
             report.write(print_avg_surv(self.metrics['avg_surv_b'], id='AVG'))
             report.write("--------------------------------------------------------------"+os.linesep)
@@ -314,7 +342,7 @@ class Simulate:
 
         if games_draw > 0:
             report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
-            report.write(f'Draw - {games_draw/self.N:.2f}{os.linesep}')
+            report.write(f'Draw - {games_draw/N:.2f}{os.linesep}')
             report.write(print_legend())
             report.write("--------------------------------------------------------------"+os.linesep)
             report.write(print_avg_surv(self.metrics['avg_draw_a'], id='A - avg'))
@@ -324,3 +352,92 @@ class Simulate:
             report.write(print_top_variations(self.metrics['outcomes_draw_b']))
 
         return report.getvalue()
+
+
+    def get_report_short(self, till=COLOR.BLACK) -> str:
+        report = StringIO(newline=os.linesep)
+
+        games_won_a     = self.metrics['games_won_a']     
+        games_won_b     = self.metrics['games_won_b']     
+        games_won_none  = self.metrics['games_won_none']  
+        games_draw      = self.metrics['games_draw']      
+
+        
+                                                          
+        def print_avg_surv(data, id='') -> str:
+            buf = StringIO()
+            str = f"{id:<10}"
+            for idx in range(till):
+                str += f"{data[idx]:<10.2f}"
+            # append air
+            str += f"{data[5+COLOR.GREEN]:<10.2f}"
+            str += f"{data[5+COLOR.RED]:<10.2f}"
+            buf.write(str+os.linesep) 
+            return buf.getvalue()
+        
+        def print_top_variations(data, N=3, p=1.0) -> str:
+            buf = StringIO(newline=os.linesep)
+            N = min(len(data['distribution']), N)
+
+            for i in range(N):
+                str = f"{data['distribution'][i]*p:<10.2f}"
+                for color in COLOR:
+                    if color == till:
+                        break
+                    str += f"{data['variations'][i][color.value]:<10}"
+                #buf.write(f"{data['distribution'][i]:<10.2f} {(data['variations'][i][0]):<10} {(data['variations'][i][1]):<10} {(data['variations'][i][2]):<10} {(data['variations'][i][3]):<10} {(data['variations'][i][4]):<10}{os.linesep}") 
+                # append air
+                str += f"{data['variations'][i][5+COLOR.GREEN]:<10}"
+                str += f"{data['variations'][i][5+COLOR.RED]:<10}"
+                buf.write(str+os.linesep)
+            return buf.getvalue()
+
+        def print_legend() -> str:
+            buf = StringIO()
+            str = f"{'':<10}"
+            for color in COLOR:
+                if color == till:
+                    break
+                str += f"{color.name:<10}"
+            # append air
+            str += f"{'AIR Green':<10}"
+            str += f"{'AIR Red':<10}"
+            buf.write(str+os.linesep)
+            return buf.getvalue()
+        N = self.cur_n+1
+        report.write(f"Results:{os.linesep}")
+        report.write(f"{'A Won:':<20}{games_won_a / N:.2f}{os.linesep}")
+        report.write(f"{'B Won:':<20}{games_won_b / N:.2f}{os.linesep}") 
+        report.write(f"{'Draw:':<20}{games_draw /   N:.2f}{os.linesep}")
+        report.write(f"{'Mutual Annihilation:':<20}{games_won_none / N:.2f}{os.linesep}")
+
+        report.write("--------------------------------------------------------------"+os.linesep)
+        report.write(print_legend())
+        report.write(print_avg_surv(self.metrics['avg_surv_a'], id='A-AVG'))
+        report.write(print_avg_surv(self.metrics['avg_surv_b'], id='B-AVG'))
+        report.write("--------------------------------------------------------------"+os.linesep)
+
+
+        report.write(print_top_variations(self.metrics['outcomes_won_a']))
+
+        if games_won_b > 0:
+            report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
+            report.write(f'Army B Won - {games_won_b/N:.2f}{os.linesep}')
+            report.write(print_legend())
+            report.write(print_avg_surv(self.metrics['avg_surv_b'], id='AVG'))
+            report.write("--------------------------------------------------------------"+os.linesep)
+            report.write(print_top_variations(self.metrics['outcomes_won_b']))
+
+        if games_draw > 0:
+            report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
+            report.write(f'Draw - {games_draw/N:.2f}{os.linesep}')
+            report.write(print_legend())
+            report.write("--------------------------------------------------------------"+os.linesep)
+            report.write(print_avg_surv(self.metrics['avg_draw_a'], id='A - avg'))
+            report.write(print_top_variations(self.metrics['outcomes_draw_a']))
+            report.write("--------------------------------------------------------------"+os.linesep)
+            report.write(print_avg_surv(self.metrics['avg_draw_b'], id='B - avg'))
+            report.write(print_top_variations(self.metrics['outcomes_draw_b']))
+
+        return report.getvalue()
+
