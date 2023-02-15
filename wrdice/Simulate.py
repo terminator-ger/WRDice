@@ -39,11 +39,17 @@ def Simulator(q_in, q_out, q_intermediate):
         q_out.put(msg)
 
 class Simulate:
-    def __init__(self, army_a: Optional[Army], army_b: Optional[Army]):
+    def __init__(self, 
+                    army_a: Optional[Army], 
+                    army_b: Optional[Army], 
+                    config = None,
+                    combat_system: Optional[CombatSystem] = None):
         self.N = 2000
         self.army_a = army_a
         self.army_b = army_b
         self.battle_type = 'land'
+        self.combat_system = combat_system
+        self.config = config
 
         self.statistics = []
         self.survivors = {'A':{'land':[],
@@ -84,7 +90,56 @@ class Simulate:
         if self.army_a is not None and self.army_b is not None:
             if np.sum(self.army_a.units['sea']) + np.sum(self.army_b.units['sea']) > 0:
                 self.battle_type = 'sea'
-        
+
+
+    def run_cb(self, app):
+        self.update_battle_type()
+        troops_a, troops_b = 0, 0
+        for T in ['sea', 'land', 'air']:
+            troops_a += self.army_a.units[T].sum() 
+            troops_b += self.army_b.units[T].sum() 
+
+        if troops_a == 0 or troops_b == 0:
+            return
+
+        if self.combat_system is CombatSystem.WarRoomV2 and self.config is None:
+            logging.warning("NO CONFIG provided falling back to default config!!!!")
+            self.config = wr20_vaniilla_options
+        elif self.config is None:
+            raise RuntimeError("No Config for combat system found")
+
+
+        for n in tqdm(range(self.N)):
+            self.cur_n = n
+            battle = Battle(copy.copy(self.army_a), 
+                            copy.copy(self.army_b),
+                            self.config)
+            status = battle.run(combat_system=self.combat_system)
+            
+            abrt = self.running_stats(status)
+            self.statistics.append(status)
+
+            for side in ['A', 'B']:
+                for type in ['land', 'air', 'sea']:
+                    self.survivors[side][type].append(battle.army[side].units[type])
+                    if type == 'sea' and battle.army[side].submerged > 0:
+                        self.survivors[side][type][-1][0] += battle.army[side].submerged
+
+            app.spinner.value = int(n / self.N * 100 )
+
+            if abrt or n+1 == self.N:
+                app.spinner.value = 100
+                app.spinner.stop()
+
+                self.eval_statistics()
+                app.results.text = self.get_report()
+                return
+
+            if n % 50 == 0 and n != self.N:
+                app.results.text = self.intermediate_statistics()
+                yield 0.01
+
+
 
     def run_all(self, combat_system: CombatSystem, config=None,  armyA: Optional[Army]=None, armyB: Optional[Army]=None, q_intermediate=None) -> StringIO:
         if armyA is not None:
@@ -132,6 +187,51 @@ class Simulate:
 
 
 
+    async def run_async(self, combat_system: CombatSystem, config=None, armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> int:
+        if armyA is not None:
+            self.army_a = armyA
+        if armyB is not None:
+            self.army_b = armyB
+
+        self.update_battle_type()
+
+        troops_a, troops_b = 0, 0
+        for T in ['sea', 'land', 'air']:
+            troops_a += self.army_a.units[T].sum() 
+            troops_b += self.army_b.units[T].sum() 
+
+        if troops_a == 0 or troops_b == 0:
+            yield (False,100)
+
+        if combat_system is CombatSystem.WarRoomV2 and config is None:
+            logging.warning("NO CONFIG provided falling back to default config!!!!")
+            config = wr20_vaniilla_options
+        elif config is None:
+            raise RuntimeError("No Config for combat system found")
+
+        for n in tqdm(range(self.N)):
+            self.cur_n = n
+            battle = Battle(copy.copy(self.army_a), 
+                            copy.copy(self.army_b),
+                            config)
+            status = battle.run(combat_system=combat_system)
+            #print(status)
+            abrt = self.running_stats(status)
+            self.statistics.append(status)
+
+            for side in ['A', 'B']:
+                for type in ['land', 'air', 'sea']:
+                    self.survivors[side][type].append(battle.army[side].units[type])
+                    if type == 'sea' and battle.army[side].submerged > 0:
+                        self.survivors[side][type][-1][0] += battle.army[side].submerged
+            if abrt:
+                yield (False, 100)
+
+            #if n % 50 == 0 and q_intermediate is not None and n != self.N and q_intermediate.empty():
+                #q_intermediate.put(self.intermediate_statistics())
+
+            yield (True, int(self.N / n))
+
 
 
     def run(self, combat_system: CombatSystem, config=None, q_intermediate=None) -> bool:
@@ -148,12 +248,6 @@ class Simulate:
             config = wr20_vaniilla_options
         elif config is None:
             raise RuntimeError("No Config for combat system found")
-
-        #logging.basicConfig(level=logging.DEBUG)
-        #logging.debug(f"Army A Dice Ground {self.army_a.n_dice_ground}")
-        #logging.debug(f"Army B Dice Ground {self.army_b.n_dice_ground}")
-        #logging.debug(f"Army A Dice Air {self.army_a.n_dice_air}")
-        #logging.debug(f"Army B Dice Air {self.army_b.n_dice_air}")
 
 
         for n in tqdm(range(self.N)):
