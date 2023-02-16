@@ -44,7 +44,7 @@ class Simulate:
                     army_b: Optional[Army], 
                     config = None,
                     combat_system: Optional[CombatSystem] = None):
-        self.N = 2000
+        self.N = 2500
         self.army_a = army_a
         self.army_b = army_b
         self.battle_type = 'land'
@@ -122,8 +122,6 @@ class Simulate:
             for side in ['A', 'B']:
                 for type in ['land', 'air', 'sea']:
                     self.survivors[side][type].append(battle.army[side].units[type])
-                    if type == 'sea' and battle.army[side].submerged > 0:
-                        self.survivors[side][type][-1][0] += battle.army[side].submerged
 
             app.spinner.value = int(n / self.N * 100 )
 
@@ -132,7 +130,7 @@ class Simulate:
                 app.spinner.stop()
 
                 self.eval_statistics()
-                app.results.text = self.get_report()
+                app.results.text = self.get_report_short()
                 return
 
             if n % 50 == 0 and n != self.N:
@@ -184,9 +182,6 @@ class Simulate:
 
 
 
-
-
-
     async def run_async(self, combat_system: CombatSystem, config=None, armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> int:
         if armyA is not None:
             self.army_a = armyA
@@ -234,21 +229,28 @@ class Simulate:
 
 
 
-    def run(self, combat_system: CombatSystem, config=None, q_intermediate=None) -> bool:
+    def run(self, combat_system: CombatSystem, config=None, armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> int:
+        
+        if armyA is not None:
+            self.army_a = armyA
+        if armyB is not None:
+            self.army_b = armyB
+
+        self.update_battle_type()
+
         troops_a, troops_b = 0, 0
         for T in ['sea', 'land', 'air']:
             troops_a += self.army_a.units[T].sum() 
             troops_b += self.army_b.units[T].sum() 
 
         if troops_a == 0 or troops_b == 0:
-            return False
+            return
 
         if combat_system is CombatSystem.WarRoomV2 and config is None:
             logging.warning("NO CONFIG provided falling back to default config!!!!")
             config = wr20_vaniilla_options
         elif config is None:
             raise RuntimeError("No Config for combat system found")
-
 
         for n in tqdm(range(self.N)):
             self.cur_n = n
@@ -266,11 +268,10 @@ class Simulate:
                     if type == 'sea' and battle.army[side].submerged > 0:
                         self.survivors[side][type][-1][0] += battle.army[side].submerged
             if abrt:
-                break
+                return
 
-            if n % 50 == 0 and q_intermediate is not None and n != self.N and q_intermediate.empty():
-                q_intermediate.put(self.intermediate_statistics())
-        return True
+
+
 
     def intermediate_statistics(self):
 
@@ -281,8 +282,8 @@ class Simulate:
         report = StringIO(newline=os.linesep)
 
         report.write(f"Results:{os.linesep}")
-        report.write(f"{'A Won:':<20}{x[0]:.2f}{os.linesep}")
-        report.write(f"{'B Won:':<20}{x[1]:.2f}{os.linesep}") 
+        report.write(f"{'A Won:':<20}{x[1]:.2f}{os.linesep}")
+        report.write(f"{'B Won:':<20}{x[0]:.2f}{os.linesep}") 
         report.write(f"{'Draw:':<20}{x[2]:.2f}{os.linesep}")
         report.write(f"{'Mutual Annihilation:':<20}{x[3]:.2f}{os.linesep}")
 
@@ -311,10 +312,10 @@ class Simulate:
         idx_games_draw  = np.argwhere(self.statistics==2)
         idx_games_won_none = np.argwhere(self.statistics==3)
 
-        avg_surv_a   = np.squeeze(np.mean(self.survivors_a[idx_games_won_a], 0))    if idx_games_won_a.any()    else np.array([0,0,0,0,0])
-        avg_surv_b   = np.squeeze(np.mean(self.survivors_b[idx_games_won_b], 0))    if idx_games_won_b.any()    else np.array([0,0,0,0,0])
-        avg_draw_a   = np.squeeze(np.mean(self.survivors_a[idx_games_draw], 0))     if idx_games_draw.any()     else np.array([0,0,0,0,0])
-        avg_draw_b   = np.squeeze(np.mean(self.survivors_b[idx_games_draw], 0))     if idx_games_draw.any()     else np.array([0,0,0,0,0])
+        avg_surv_a   = np.squeeze(np.mean(self.survivors_a[idx_games_won_a], 0))    if idx_games_won_a.any()    else np.zeros(10)
+        avg_surv_b   = np.squeeze(np.mean(self.survivors_b[idx_games_won_b], 0))    if idx_games_won_b.any()    else np.zeros(10)
+        avg_draw_a   = np.squeeze(np.mean(self.survivors_a[idx_games_draw], 0))     if idx_games_draw.any()     else np.zeros(10)
+        avg_draw_b   = np.squeeze(np.mean(self.survivors_b[idx_games_draw], 0))     if idx_games_draw.any()     else np.zeros(10)
 
         self.metrics['avg_surv_a'] = avg_surv_a
         self.metrics['avg_surv_b'] = avg_surv_b
@@ -498,7 +499,9 @@ class Simulate:
             str += f"{'AIR Red':<10}"
             buf.write(str+os.linesep)
             return buf.getvalue()
+
         N = self.cur_n+1
+        report.write("--------------------------------------------------------------"+os.linesep)
         report.write(f"Results:{os.linesep}")
         report.write(f"{'A Won:':<20}{games_won_a / N:.2f}{os.linesep}")
         report.write(f"{'B Won:':<20}{games_won_b / N:.2f}{os.linesep}") 
@@ -506,32 +509,43 @@ class Simulate:
         report.write(f"{'Mutual Annihilation:':<20}{games_won_none / N:.2f}{os.linesep}")
 
         report.write("--------------------------------------------------------------"+os.linesep)
+        report.write("Total Average"+os.linesep)
         report.write(print_legend())
         report.write(print_avg_surv(self.metrics['avg_surv_a'], id='A-AVG'))
         report.write(print_avg_surv(self.metrics['avg_surv_b'], id='B-AVG'))
         report.write("--------------------------------------------------------------"+os.linesep)
 
 
-        report.write(print_top_variations(self.metrics['outcomes_won_a']))
+        if games_won_a > 0:
+            p_a = games_won_a/N
+            report.write(os.linesep)
+            report.write(f'Army A Won - {p_a:.2f}{os.linesep}')
+            report.write(print_legend())
+            report.write(print_avg_surv(self.metrics['avg_surv_a'], id='AVG'))
+            report.write("--------------------------------------------------------------"+os.linesep)
+            report.write(print_top_variations(self.metrics['outcomes_won_a'], p=p_a))
+
 
         if games_won_b > 0:
-            report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
-            report.write(f'Army B Won - {games_won_b/N:.2f}{os.linesep}')
+            p_b = games_won_b/N
+            report.write(os.linesep)
+            report.write(f'Army B Won - {p_b:.2f}{os.linesep}')
             report.write(print_legend())
             report.write(print_avg_surv(self.metrics['avg_surv_b'], id='AVG'))
             report.write("--------------------------------------------------------------"+os.linesep)
-            report.write(print_top_variations(self.metrics['outcomes_won_b']))
+            report.write(print_top_variations(self.metrics['outcomes_won_b'], p=p_b))
 
         if games_draw > 0:
-            report.write("++++++++++++++++++++++++++++++++++++++++++++"+os.linesep)
-            report.write(f'Draw - {games_draw/N:.2f}{os.linesep}')
+            g_d = games_draw/N
+            report.write(os.linesep)
+            report.write(f'Draw - {g_d:.2f}{os.linesep}')
             report.write(print_legend())
             report.write("--------------------------------------------------------------"+os.linesep)
             report.write(print_avg_surv(self.metrics['avg_draw_a'], id='A - avg'))
-            report.write(print_top_variations(self.metrics['outcomes_draw_a']))
+            report.write(print_top_variations(self.metrics['outcomes_draw_a'], p=g_d))
             report.write("--------------------------------------------------------------"+os.linesep)
             report.write(print_avg_surv(self.metrics['avg_draw_b'], id='B - avg'))
-            report.write(print_top_variations(self.metrics['outcomes_draw_b']))
+            report.write(print_top_variations(self.metrics['outcomes_draw_b'], p=g_d))
 
         return report.getvalue()
 

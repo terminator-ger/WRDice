@@ -9,7 +9,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
 #subprocess.call(['make', '-C', 'src'])
 
 setup(name='WRDice',
-      version='0.0.1.7a',
+      version='0.0.1.11',
       python_requires='>=3.8.10',
       description='Python simulator for war room battles',
       long_description=readme,
