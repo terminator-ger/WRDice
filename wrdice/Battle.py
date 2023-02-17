@@ -172,20 +172,24 @@ class Battle:
                         ground_hp[color][p] -= 1
 
                     hits_ground[color] -= 1
-
+        
+        if self.battle_ground == 'sea':
+            ground_wild_targets = [COLOR.BLUE, COLOR.GREEN, COLOR.RED]
+        else:
+            ground_wild_targets = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]
         
         if (source in self.fa and \
             self.army[source].strategy['ground'] == Strategy.BlackToHighestValueFirst):
             priority = np.argsort(unit_values)
             #BLACK
-            for color in [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]:
+            for color in ground_wild_targets:
                 for p in priority[color][::-1]:
                     while ground_hp[color][p] > 0 and hits_ground[COLOR.BLACK] > 0:
                         ground_hp[color][p] -= 1
                         hits_ground[COLOR.BLACK] -= 1
 
             #WHITE
-            for color in [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]:
+            for color in ground_wild_targets:
                 for p in np.argsort(priority[color])[::-1]:
                     while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and ground_hp[color][p] % unit_hp[p]:
                         ground_hp[color][p] -= 1
@@ -206,21 +210,48 @@ class Battle:
         units += [self.battle_ground]
         
         for type in units:
-            div = np.divide(self.army[target].units_hp[type].T, self.options['hp'][type], 
-                            out=np.zeros(self.army[target].units_hp[type].T.shape, dtype=float), where=self.options['hp'][type]!=0)
+            div = np.divide(self.army[target].units_hp[type].T, 
+                            self.options['hp'][type], 
+                            out=np.zeros(self.army[target].units_hp[type].T.shape, dtype=float), 
+                            where=self.options['hp'][type]!=0)
             in_battle = np.ceil(div)
 
             # subs flee battle
             # TODO: add flag/config to indicate submersibles
-            if type == 'sea' and np.any(self.army[target].units_hp['sea'][0] % self.options['hp']['sea'][:,0] == 1):
-                idx = np.argwhere(self.army[target].units_hp['sea'][0] % self.options['hp']['sea'][:,0] == 1)
-                self.army[target].submerged += 1
-                self.army[target].units_hp['sea'][0][idx] -= 1
-                self.army[target].units_by_stance['sea'][0][idx] -= 1
+            #if type == 'sea' and np.any(self.army[target].units_hp['sea'][0] % self.options['hp']['sea'][:,0] == 1):
+            #    idx = np.argwhere(self.army[target].units_hp['sea'][0] % self.options['hp']['sea'][:,0] == 1)
+            #    self.army[target].submerged += 1
+            #    self.army[target].units_hp['sea'][0][idx] -= 1
+            #    self.army[target].units_by_stance['sea'][0][idx] -= 1
 
             in_battle_combined = np.sum(in_battle, axis=0) # sum over different stances
             self.army[target].units[type] = in_battle_combined
             self.army[target].units_by_stance[type] = in_battle
+
+        self.army[target].units['sea'][0] += self.army[target].submerged
+        self.army[target].units_by_stance['sea'][0,0] += self.army[target].submerged
+
+
+
+    def check_submerged(self, target):
+        div = np.divide(self.army[target].units_hp['sea'].T, 
+                        self.options['hp']['sea'], 
+                        out=np.zeros(self.army[target].units_hp['sea'].T.shape, dtype=float), 
+                        where=self.options['hp']['sea']!=0)
+
+        in_battle = np.ceil(div)
+
+        # subs flee battle
+        # TODO: add flag/config to indicate submersibles
+
+        sub_hp = self.options['hp']['sea'][:,0]
+        sub_cur_hp = self.army[target].units_hp['sea'][0] 
+
+        if np.any(sub_cur_hp % sub_hp == 1):
+            idx = np.argwhere(sub_cur_hp % sub_hp == 1)
+            self.army[target].submerged += 1
+            self.army[target].units_hp['sea'][0][idx] -= 1
+            self.army[target].units_by_stance['sea'][0][idx] -= 1
 
 
 
@@ -353,6 +384,10 @@ class Battle:
 
             if self.options['recheck_force_advantage']:
                 self.fa = self.get_force_advantage()
+
+            if self.battle_ground == 'sea':
+                self.check_submerged('A')
+                self.check_submerged('B')
 
         self.update_unit_count('A')
         self.update_unit_count('B')
