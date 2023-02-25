@@ -131,10 +131,19 @@ class Simulate:
 
                 self.eval_statistics()
                 app.results.text = self.get_report_short()
+                app.win_loss_dist = self.intermediate_statistics()
+                app.stats_a_ground = self.metrics['stats_a_ground']
+                app.stats_b_ground = self.metrics['stats_b_ground']
+                app.stats_a_air = self.metrics['stats_a_air']
+                app.stats_b_air = self.metrics['stats_b_air']
+                app.chart._resize()
                 return
 
-            if n % 50 == 0 and n != self.N:
+            if n % 200 == 0 and n != self.N:
                 app.results.text = self.intermediate_statistics()
+                app.win_loss_dist = self.intermediate_statistics()
+                app.chart._resize()
+
                 yield 0.01
 
 
@@ -155,7 +164,7 @@ class Simulate:
         else:
             return None
 
-    def running_stats(self, status, eps=0.5):
+    def running_stats(self, status, eps=0.5, min_run=500):
         self.stats[status] += 1
         N = (self.cur_n + 1)
         x = self.stats / N
@@ -173,7 +182,7 @@ class Simulate:
         self.M2 += delta * delta2
         (mean, variance, sampleVariance) = (self.moving_mean, self.M2 / N, self.M2 / (N - 1))
 
-        if np.max(sampleVariance)**(1/2) < 0.01 and self.cur_n > 250:
+        if np.max(sampleVariance)**(1/2) < 0.01 and self.cur_n > min_run:
             self.moving_stats_last = self.moving_mean[:]
             return True
         else:
@@ -271,19 +280,20 @@ class Simulate:
                 return
 
 
-
-
     def intermediate_statistics(self):
-
         N = (self.cur_n + 1)
         x = self.stats / N
         x[np.isnan(x)] = 0
+        return np.array([x[1],x[0],x[2],x[3]])
 
+
+    def intermediate_statistics_as_text(self):
+        x = self.intermediate_statistics()
         report = StringIO(newline=os.linesep)
 
         report.write(f"Results:{os.linesep}")
-        report.write(f"{'A Won:':<20}{x[1]:.2f}{os.linesep}")
-        report.write(f"{'B Won:':<20}{x[0]:.2f}{os.linesep}") 
+        report.write(f"{'A Won:':<20}{x[0]:.2f}{os.linesep}")
+        report.write(f"{'B Won:':<20}{x[1]:.2f}{os.linesep}") 
         report.write(f"{'Draw:':<20}{x[2]:.2f}{os.linesep}")
         report.write(f"{'Mutual Annihilation:':<20}{x[3]:.2f}{os.linesep}")
 
@@ -354,6 +364,31 @@ class Simulate:
         top_varations_won_b, distr_won_b = top_variations(self.survivors_b[idx_games_won_b])
         top_varations_draw_a, distr_draw_a = top_variations(self.survivors_a[idx_games_draw])
         top_varations_draw_b, distr_draw_b = top_variations(self.survivors_b[idx_games_draw])
+
+
+        units_a = np.array(self.survivors['A'][self.battle_type])
+        units_b = np.array(self.survivors['B'][self.battle_type])
+        units_a_air = np.array(self.survivors['A']['air'])
+        units_b_air = np.array(self.survivors['B']['air'])
+
+        def unit_hist(arr):
+            stats = []
+            for i in range(arr.shape[1]):
+                num, cnt = np.unique(arr[:,i], return_counts=True)
+                cnt = cnt / arr.shape[0]
+                stats.append((num,cnt))
+            return stats
+
+        stats_a_ground = unit_hist(units_a)
+        stats_b_ground = unit_hist(units_b)
+        stats_a_air = unit_hist(units_a_air)
+        stats_b_air = unit_hist(units_b_air)
+
+        self.metrics['stats_a_ground'] = stats_a_ground
+        self.metrics['stats_b_ground'] = stats_b_ground
+        self.metrics['stats_a_air'] = stats_a_air
+        self.metrics['stats_b_air'] = stats_b_air
+
 
         self.metrics['outcomes_won_a']  = {'variations': top_varations_won_a, 'distribution': distr_won_a}
         self.metrics['outcomes_won_b']  = {'variations': top_varations_won_b, 'distribution': distr_won_b}
