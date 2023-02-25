@@ -11,9 +11,9 @@ python -m pip install wrdice
 ## Usage
 
 
-Units are added for land, air and sea in the color order
-[yellow, blue, green, red, black]
-Units are assigned to differnet stances either by their numerical value or -1 to assign all units to a given stance
+Units are added for land, air and sea in the color order  
+[yellow, blue, green, red, black]  
+Units are assigned to differnet stances either by their numerical value or -1 to assign all units to a given stance  
 stances = [defensive/esocort/anti-air], [offensive/ground]
 ```
 config = wr20_vaniilla_options
