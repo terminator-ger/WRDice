@@ -17,6 +17,13 @@ Units are assigned to differnet stances either by their numerical value or -1 to
 > stances = [defensive/esocort/anti-air], [offensive/ground]
 
 ```python
+=======
+
+Units are added for land, air and sea in the color order  
+[yellow, blue, green, red, black]  
+Units are assigned to differnet stances either by their numerical value or -1 to assign all units to a given stance  
+stances = [defensive/esocort/anti-air], [offensive/ground]
+```
 config = wr20_vaniilla_options
 NO_UNITS = [0,0,0,0,0]
 ALL_UNITS = [-1,-1,-1,-1,-1]
