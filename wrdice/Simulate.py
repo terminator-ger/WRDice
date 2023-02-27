@@ -136,13 +136,13 @@ class Simulate:
                 app.stats_b_ground = self.metrics['stats_b_ground']
                 app.stats_a_air = self.metrics['stats_a_air']
                 app.stats_b_air = self.metrics['stats_b_air']
-                app.chart._resize()
+                app.draw_chart()
                 return
 
             if n % 200 == 0 and n != self.N:
                 app.results.text = self.intermediate_statistics()
                 app.win_loss_dist = self.intermediate_statistics()
-                app.chart._resize()
+                app.draw_chart()
 
                 yield 0.01
 

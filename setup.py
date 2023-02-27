@@ -7,12 +7,14 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
     readme = f.read()
 
 #subprocess.call(['make', '-C', 'src'])
+print(readme)
 
 setup(name='WRDice',
-      version='0.0.1.11',
+      version='0.0.1.12',
       python_requires='>=3.8.10',
       description='Python simulator for war room battles',
       long_description=readme,
+      long_description_content_type="text/markdown",
       author='theterminator',
       author_email='warroom@theterminator.e4ward.com',
       url='',
