@@ -142,7 +142,7 @@ class Simulate:
             if n % 100 == 0 and n != self.N:
                 #app.results.text = self.intermediate_statistics()
                 app.win_loss_dist = self.intermediate_statistics()
-                pp.draw_chart()
+                app.draw_chart()
 
                 yield 0.01
 
