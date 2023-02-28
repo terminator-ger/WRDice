@@ -10,7 +10,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
 print(readme)
 
 setup(name='WRDice',
-      version='0.0.1.14',
+      version='0.0.1.15',
       python_requires='>=3.8.10',
       description='Python simulator for war room battles',
       long_description=readme,

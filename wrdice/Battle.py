@@ -360,7 +360,7 @@ class Battle:
     def run_warroomv2(self):
         if self.options['force_advantage']:
             self.fa = self.get_force_advantage()
-
+        
         for batch in range(3):
             self.roll_air_and_apply_hits_wr2('A', 'B', batch)
             self.roll_air_and_apply_hits_wr2('B', 'A', batch)

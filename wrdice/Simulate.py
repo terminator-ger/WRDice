@@ -111,8 +111,8 @@ class Simulate:
 
         for n in (range(self.N)):
             self.cur_n = n
-            battle = Battle(copy.copy(self.army_a), 
-                            copy.copy(self.army_b),
+            battle = Battle(copy.deepcopy(self.army_a), 
+                            copy.deepcopy(self.army_b),
                             self.config)
             status = battle.run(combat_system=self.combat_system)
             
@@ -139,7 +139,7 @@ class Simulate:
                 app.draw_chart()
                 return
 
-            if n % 100 == 0 and n != self.N:
+            if n % 150 == 0 and n != self.N:
                 #app.results.text = self.intermediate_statistics()
                 app.win_loss_dist = self.intermediate_statistics()
                 app.draw_chart()
@@ -191,53 +191,6 @@ class Simulate:
 
 
 
-    async def run_async(self, combat_system: CombatSystem, config=None, armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> int:
-        if armyA is not None:
-            self.army_a = armyA
-        if armyB is not None:
-            self.army_b = armyB
-
-        self.update_battle_type()
-
-        troops_a, troops_b = 0, 0
-        for T in ['sea', 'land', 'air']:
-            troops_a += self.army_a.units[T].sum() 
-            troops_b += self.army_b.units[T].sum() 
-
-        if troops_a == 0 or troops_b == 0:
-            yield (False,100)
-
-        if combat_system is CombatSystem.WarRoomV2 and config is None:
-            logging.warning("NO CONFIG provided falling back to default config!!!!")
-            config = wr20_vaniilla_options
-        elif config is None:
-            raise RuntimeError("No Config for combat system found")
-
-        for n in tqdm(range(self.N)):
-            self.cur_n = n
-            battle = Battle(copy.copy(self.army_a), 
-                            copy.copy(self.army_b),
-                            config)
-            status = battle.run(combat_system=combat_system)
-            #print(status)
-            abrt = self.running_stats(status)
-            self.statistics.append(status)
-
-            for side in ['A', 'B']:
-                for type in ['land', 'air', 'sea']:
-                    self.survivors[side][type].append(battle.army[side].units[type])
-                    if type == 'sea' and battle.army[side].submerged > 0:
-                        self.survivors[side][type][-1][0] += battle.army[side].submerged
-            if abrt:
-                yield (False, 100)
-
-            #if n % 50 == 0 and q_intermediate is not None and n != self.N and q_intermediate.empty():
-                #q_intermediate.put(self.intermediate_statistics())
-
-            yield (True, int(self.N / n))
-
-
-
     def run(self, combat_system: CombatSystem, config=None, armyA: Optional[Army]=None, armyB: Optional[Army]=None) -> int:
         
         if armyA is not None:
@@ -270,10 +223,12 @@ class Simulate:
             #print(status)
             abrt = self.running_stats(status)
             self.statistics.append(status)
+            print(battle.army['B'].units['air'])
 
             for side in ['A', 'B']:
                 for type in ['land', 'air', 'sea']:
                     self.survivors[side][type].append(battle.army[side].units[type])
+
                     if type == 'sea' and battle.army[side].submerged > 0:
                         self.survivors[side][type][-1][0] += battle.army[side].submerged
             if abrt:

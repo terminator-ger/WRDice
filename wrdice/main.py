@@ -22,7 +22,7 @@ if __name__ == '__main__':
     ALL_UNITS = [-1,-1,-1,-1,-1]
 
     B = Army(units_land = [3,0,0,0,0], 
-             units_air =  [0,0,0,0,0], 
+             units_air =  [0,0,4,0,0], 
              units_sea =  [0,0,0,0,0],
              options = config)
     B.apply_stance(stance_land = [ALL_UNITS,    NO_UNITS],
@@ -30,7 +30,7 @@ if __name__ == '__main__':
                     stance_sea = [NO_UNITS,    ALL_UNITS])
 
 
-    A = Army(units_land = [3,2,0,0,0], 
+    A = Army(units_land = [3,2,1,0,0], 
              units_air =  [0,0,0,0,0], 
              units_sea =  [0,0,0,0,0],
              options = config)
