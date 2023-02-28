@@ -109,7 +109,7 @@ class Simulate:
             raise RuntimeError("No Config for combat system found")
 
 
-        for n in tqdm(range(self.N)):
+        for n in (range(self.N)):
             self.cur_n = n
             battle = Battle(copy.copy(self.army_a), 
                             copy.copy(self.army_b),
@@ -130,7 +130,7 @@ class Simulate:
                 app.spinner.stop()
 
                 self.eval_statistics()
-                app.results.text = self.get_report_short()
+                #app.results.text = self.get_report_short()
                 app.win_loss_dist = self.intermediate_statistics()
                 app.stats_a_ground = self.metrics['stats_a_ground']
                 app.stats_b_ground = self.metrics['stats_b_ground']
@@ -139,10 +139,10 @@ class Simulate:
                 app.draw_chart()
                 return
 
-            if n % 200 == 0 and n != self.N:
-                app.results.text = self.intermediate_statistics()
+            if n % 100 == 0 and n != self.N:
+                #app.results.text = self.intermediate_statistics()
                 app.win_loss_dist = self.intermediate_statistics()
-                app.draw_chart()
+                pp.draw_chart()
 
                 yield 0.01
 
