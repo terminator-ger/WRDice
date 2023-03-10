@@ -134,6 +134,7 @@ class Battle:
 
         self.army[target].units_hp['air'] = air_hp
 
+
     def roll_ground_and_apply_hits_wr2(self, source, target, batch):
         dice = self.options['batch_size'] if self.army[source].n_dice_ground > self.options['batch_size'] else self.army[source].n_dice_ground
         self.army[source].n_dice_ground -= self.options['batch_size']
@@ -360,7 +361,9 @@ class Battle:
     def run_warroomv2(self):
         if self.options['force_advantage']:
             self.fa = self.get_force_advantage()
-        
+        #print(f"Dice Air A: {self.army['A'].n_dice_air}")
+        #print(f"Dice Air B: {self.army['B'].n_dice_air}")
+
         for batch in range(3):
             self.roll_air_and_apply_hits_wr2('A', 'B', batch)
             self.roll_air_and_apply_hits_wr2('B', 'A', batch)
@@ -371,6 +374,9 @@ class Battle:
         # update land combat strenght
         self.army['A'].update_dice_ground()
         self.army['B'].update_dice_ground()
+        #print(f"Dice Ground A: {self.army['A'].n_dice_ground}")
+        #print(f"Dice Ground B: {self.army['B'].n_dice_ground}")
+
 
         logging.debug(f"Army A dice {self.army['A'].n_dice_ground}")
         logging.debug(f"Army B dice {self.army['B'].n_dice_ground}")
