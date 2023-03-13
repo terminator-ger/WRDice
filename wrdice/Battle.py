@@ -145,8 +145,9 @@ class Battle:
         roll = self.d12_batch.roll(dice)
 
         # get hp pools for planes
-        hits_ground = np.zeros(COLOR.BLACK)
-        hits_ground[:COLOR.BLACK] = roll[:COLOR.BLACK]
+        hits_ground = roll
+        #hits_ground = np.zeros(COLOR.BLACK)
+        #hits_ground[:COLOR.BLACK] = roll[:COLOR.BLACK]
 
         ground_hp = np.concatenate((self.army[target].units_hp['land'], 
                                     self.army[target].units_hp['sea']), axis=1)
@@ -178,12 +179,17 @@ class Battle:
             ground_wild_targets = [COLOR.BLUE, COLOR.GREEN, COLOR.RED]
         else:
             ground_wild_targets = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]
-        
+
+
+        if self.army[source].strategy['ground'] is None:
+            logging.warning("No Dice Strategy selected! - Using Highest Value first")
+            self.army[source].strategy['ground'] = Strategy.BlackToHighestValueFirst
+
         if (source in self.fa and \
             self.army[source].strategy['ground'] == Strategy.BlackToHighestValueFirst):
             priority = np.argsort(unit_values)
             #BLACK
-            for color in ground_wild_targets:
+            for color in ground_wild_targets[::-1]:
                 for p in priority[color][::-1]:
                     while ground_hp[color][p] > 0 and hits_ground[COLOR.BLACK] > 0:
                         ground_hp[color][p] -= 1
@@ -192,9 +198,11 @@ class Battle:
             #WHITE
             for color in ground_wild_targets:
                 for p in np.argsort(priority[color])[::-1]:
-                    while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and ground_hp[color][p] % unit_hp[p]:
+                    while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and np.any(ground_hp[color][p] % unit_hp[p] ==1):
                         ground_hp[color][p] -= 1
                         hits_ground[COLOR.WHITE] -= 1
+        else:
+            raise RuntimeError("No dice assignment strategy selected!")
 
         # write back updated hp pool
         land_hp, sea_hp = np.hsplit(ground_hp, 2)
