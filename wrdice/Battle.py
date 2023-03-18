@@ -16,7 +16,42 @@ class Battle:
         self.battle_ground = None
         self.battle_air = None
         logging.basicConfig(level=logging.INFO)
+        self.priorized_targets = {'A': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW],
+                                  'B': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]}
 
+        self.calc_priorized_targets()
+
+    def calc_priorized_targets(self):
+        ''' Algo by Yuan Ming @shadowymz -> boardgamegeek.com
+        '''
+        exp = {}
+        exp['A'] = self.army['A'].units['ground'] * np.array([3,4,6,0,0])
+        exp['B'] = self.army['B'].units['ground'] * np.array([3,4,6,0,0])
+        for trgt in ['A', 'B']:
+            ref = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN]
+            
+            if exp[trgt][COLOR.GREEN] > 30:
+                self.priorized_targets[trgt] = [COLOR.GREEN]
+                ref[COLOR.GREEN] = None
+                exp[trgt][COLOR.GREEN] = 0
+                
+            elif exp[trgt][COLOR.BLUE] > 30:
+                self.priorized_targets[trgt] = [COLOR.BLUE]
+                ref[COLOR.BLUE] = None
+                ref[COLOR.BLUE] = None
+                exp[trgt][COLOR.YELLOW] = 0
+                
+            elif exp[trgt][COLOR.YELLOW] > 30:
+                self.priorized_targets[trgt] = [COLOR.YELLOW]
+                ref[COLOR.YELLOW] = None
+                exp[trgt][COLOR.YELLOW] = 0
+            else:
+                while not np.all(np.array(ref) == None):
+                    idx = np.argmax(exp[trgt])
+                    self.priorized_targets[trgt].append(ref[idx])
+                    ref[idx] = None
+                    exp[trgt][idx] = 0
+        
 
     def get_num_colors_land(self, side):
         unique = np.unique(np.argwhere(self.army[side].units['land']))
@@ -80,6 +115,7 @@ class Battle:
                 exp = self.expected_hits(source, target)
                 exp *= self.options['unit_morale_land']
                 color_select_to_delete = np.argsort(exp)[::-1][:num_colors]
+            
 
 
         #apply color selection to hits_land
@@ -106,11 +142,17 @@ class Battle:
         air_hp = self.army[target].units_hp['air']
         priority = np.arange(len(air_hp.reshape(-1))).reshape(-1,2)
 
-        for color in [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]:
+        for color in [COLOR.GREEN, COLOR.RED]:
+            if hits_air[color] == 0:
+                break
             for p in np.argsort(priority[color])[::-1]:
+                if hits_air[color] == 0:
+                    break
                 while air_hp[color][p] > 0 and hits_air[color] > 0:
                     air_hp[color][p] -= 1
                     hits_air[color] -= 1
+                    if hits_air[color] == 0:
+                        break
 
 
         if self.army[source].strategy['air'] == Strategy.BlackToHighestValueFirst:
@@ -118,19 +160,31 @@ class Battle:
             p2 = priority*2+1
             priority = np.concatenate((priority, p2))
 
-            for color in [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]:
+            for color in [COLOR.RED, COLOR.GREEN]:
+                if hits_air[COLOR.BLACK] == 0:
+                    break
                 for p in np.argsort(priority[color])[::-1]:
+                    if hits_air[COLOR.BLACK] == 0:
+                        break
                     while air_hp[color][p] > 0 and hits_air[COLOR.BLACK] > 0:
                         air_hp[color][p] -= 1
                         hits_air[COLOR.BLACK] -= 1
+                        if hits_air[COLOR.BLACK] == 0:
+                            break
 
             unit_hp = self.options['hp']['air']
 
-            for color in [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]:
+            for color in [COLOR.RED, COLOR.GREEN]:
+                if hits_air[COLOR.WHITE] == 0:
+                    break
                 for p in np.argsort(priority[color])[::-1]:
+                    if hits_air[COLOR.WHITE] == 0:
+                        break
                     while air_hp[color][p] > 0 and hits_air[COLOR.WHITE] > 0 and air_hp[color][p] % unit_hp[color][p]:
                         air_hp[color][p] -= 1
                         hits_air[COLOR.WHITE] -= 1
+                        if hits_air[COLOR.WHITE] == 0:
+                            break
 
         self.army[target].units_hp['air'] = air_hp
 
@@ -176,31 +230,48 @@ class Battle:
                     hits_ground[color] -= 1
         
         if self.battle_ground == 'sea':
-            ground_wild_targets = [COLOR.BLUE, COLOR.GREEN, COLOR.RED]
+            ground_wild_targets = [COLOR.RED, COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]
         else:
-            ground_wild_targets = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED]
+            ground_wild_targets = [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]
 
 
         if self.army[source].strategy['ground'] is None:
             logging.warning("No Dice Strategy selected! - Using Highest Value first")
             self.army[source].strategy['ground'] = Strategy.BlackToHighestValueFirst
 
-        if (source in self.fa and \
-            self.army[source].strategy['ground'] == Strategy.BlackToHighestValueFirst):
-            priority = np.argsort(unit_values)
-            #BLACK
-            for color in ground_wild_targets[::-1]:
-                for p in priority[color][::-1]:
-                    while ground_hp[color][p] > 0 and hits_ground[COLOR.BLACK] > 0:
-                        ground_hp[color][p] -= 1
-                        hits_ground[COLOR.BLACK] -= 1
+        if source in self.fa:
+            if self.army[source].strategy['ground'] == Strategy.BlackToHighestValueFirst:
+                priority = np.argsort(unit_values)
+                #BLACK
+                for color in ground_wild_targets[::-1]:
+                    if hits_ground[COLOR.BLACK] == 0:
+                        break
+                    for p in priority[color][::-1]:
+                        if hits_ground[COLOR.BLACK] == 0:
+                            break
+                        while ground_hp[color][p] > 0 and hits_ground[COLOR.BLACK] > 0:
+                            ground_hp[color][p] -= 1
+                            hits_ground[COLOR.BLACK] -= 1
+                            if hits_ground[COLOR.BLACK] == 0:
+                                break
 
-            #WHITE
-            for color in ground_wild_targets:
-                for p in np.argsort(priority[color])[::-1]:
-                    while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and np.any(ground_hp[color][p] % unit_hp[p] ==1):
-                        ground_hp[color][p] -= 1
-                        hits_ground[COLOR.WHITE] -= 1
+                #WHITE
+                for color in ground_wild_targets:
+                    if hits_ground[COLOR.WHITE] == 0:
+                        break
+                    for p in np.argsort(priority[color])[::-1]:
+                        if hits_ground[COLOR.WHITE] == 0:
+                            break
+                        while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and np.any(ground_hp[color][p] % unit_hp[p] ==1):
+                            ground_hp[color][p] -= 1
+                            hits_ground[COLOR.WHITE] -= 1
+                            if hits_ground[COLOR.WHITE] == 0:
+                                break
+            elif self.army[source].strategy['ground'] == Strategy.ShadowywzsStrategy:
+                # as describred in his xlxs sheet
+                
+
+
         else:
             raise RuntimeError("No dice assignment strategy selected!")
 
@@ -440,21 +511,19 @@ class Battle:
 
         status = None
         if (self.army['A'].units[self.battle_ground].sum() == 0  and \
-                (self.army['B'].units[self.battle_ground].sum() > 0 or \
-                self.army['B'].units['air'].sum() > 0 )):
+            self.army['B'].units[self.battle_ground].sum() > 0):
             status = 0
 
-        elif ((self.army['A'].units[self.battle_ground].sum() > 0  or \
-                self.army['A'].units['air'].sum() > 0)  and \
-                self.army['B'].units[self.battle_ground].sum() == 0):
+        elif (self.army['A'].units[self.battle_ground].sum() > 0  and \
+              self.army['B'].units[self.battle_ground].sum() == 0):
             status = 1
 
         elif (self.army['A'].units[self.battle_ground].sum() > 0  and \
-                self.army['B'].units[self.battle_ground].sum() > 0):
+              self.army['B'].units[self.battle_ground].sum() > 0):
             status = 2
 
         elif (self.army['A'].units[self.battle_ground].sum() == 0 and \
-                self.army['B'].units[self.battle_ground].sum() == 0):
+              self.army['B'].units[self.battle_ground].sum() == 0):
             status = 3
         
         return status

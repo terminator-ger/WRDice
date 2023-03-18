@@ -44,6 +44,12 @@ class Simulate:
                     army_b: Optional[Army], 
                     config = None,
                     combat_system: Optional[CombatSystem] = None):
+        with open(os.path.join(os.path.dirname(__file__), '../version')) as f:
+            version = f.read()
+            print(f"Using WRDice v.{version}")
+        
+
+
         self.N = 2500
         self.army_a = army_a
         self.army_b = army_b

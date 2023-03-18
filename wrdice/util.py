@@ -28,6 +28,7 @@ class Strategy(Enum):
     BlackToHighestValueFirst = auto()
     BlackToGroundFirst = auto()
     GenerateWhite = auto()
+    ShadowywzsStrategy = auto()
 
 def ListToNumpy(x):
     if isinstance(x, list):

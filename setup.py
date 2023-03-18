@@ -6,11 +6,14 @@ from setuptools import setup
 with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
     readme = f.read()
 
+with open(os.path.join(os.path.dirname(__file__), 'version')) as f:
+    version = f.read()
+
 #subprocess.call(['make', '-C', 'src'])
 print(readme)
 
 setup(name='WRDice',
-      version='0.0.1.15',
+      version=version,
       python_requires='>=3.8.10',
       description='Python simulator for war room battles',
       long_description=readme,
