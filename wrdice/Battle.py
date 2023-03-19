@@ -19,14 +19,14 @@ class Battle:
         self.priorized_targets = {'A': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW],
                                   'B': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]}
 
-        self.calc_priorized_targets()
 
     def calc_priorized_targets(self):
         ''' Algo by Yuan Ming @shadowymz -> boardgamegeek.com
         '''
+        self.priorized_targets = {'A': [], 'B': []}
         exp = {}
-        exp['A'] = self.army['A'].units['ground'] * np.array([3,4,6,0,0])
-        exp['B'] = self.army['B'].units['ground'] * np.array([3,4,6,0,0])
+        exp['A'] = self.army['A'].units[self.battle_ground] * np.array([3,4,6,0,0])
+        exp['B'] = self.army['B'].units[self.battle_ground] * np.array([3,4,6,0,0])
         for trgt in ['A', 'B']:
             ref = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN]
             
@@ -267,7 +267,6 @@ class Battle:
                             hits_ground[COLOR.WHITE] -= 1
                             if hits_ground[COLOR.WHITE] == 0:
                                 break
-            elif self.army[source].strategy['ground'] == Strategy.ShadowywzsStrategy:
                 # as describred in his xlxs sheet
                 
 
@@ -492,7 +491,6 @@ class Battle:
             2 - draw both survived
             3 - draw both eliminated
         '''
-
         # auto determine battle type by units present
         type = ['land', 'sea'] 
         self.battle_ground = 'land'
@@ -500,6 +498,7 @@ class Battle:
             for T in type:
                 if self.army[A].units[T].sum() > 0:
                     self.battle_ground = T
+        #self.calc_priorized_targets()
 
         if combat_system == CombatSystem.WarRoomV2:
             self.run_warroomv2()
