@@ -44,6 +44,10 @@ wr20_vaniilla_options = {
     #  [stance0 - ground]],
     # [[stance1 - air],
     # [stance1 - ground]]
+    'unit_cost_equiv' : {'land' : np.array([2,    4.6,  6.2,    0, 0]),
+                         'air' :  np.array([0,      0,  7.6,  9.2, 0]),
+                         'sea':   np.array([6.2, 11.8, 22.8, 16.9, 0])
+    },
 
     'unit_attack': {'land' : np.array([[[0, 2, 1, 0, 0],
                                         [1, 1, 2, 0, 0]],

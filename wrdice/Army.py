@@ -1,3 +1,4 @@
+from more_itertools import factor
 import numpy as np
 import logging
 import copy
@@ -14,12 +15,13 @@ class Army:
         self.units_by_stance = None
 
         self.units_hp = {}
-        self.strategy = {'air' : None,
+        self.strategy = {'air' :    None,
                          'ground' : None}
 
         self.options = options
         self.n_dice_air = 0
         self.n_dice_ground = 0
+        
 
     def __copy__(self):
         cls = self.__class__
@@ -29,10 +31,62 @@ class Army:
         result.units_by_stance = copy.deepcopy(self.units_by_stance)
         result.n_dice_air = self.n_dice_air 
         result.n_dice_ground = self.n_dice_ground
-        result.units_hp = self.units_hp.copy()
+        result.units_hp = copy.deepcopy(self.units_hp)
         result.strategy = self.strategy
         result.options = self.options
         return result
+    
+    def calc_priorization_yuan_ming(self):
+        ''' Algo by Yuan Ming @shadowymz -> boardgamegeek.com
+        '''
+        
+        factor_land = self.units['land'] * np.array([3,4,6,0,0])
+        prio = np.zeros(5,2)
+        TODO = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN, COLOR.RED, COLOR.BLACK]
+        p = 0
+        if factor_land[COLOR.GREEN] > 30:
+            prio[COLOR.GREEN] = [p, p+1]
+            TODO.remove(COLOR.GREEN)
+            p += 2
+        elif factor_land[COLOR.BLUE] > 30:
+            prio[COLOR.BLUE] = [p, p+1]
+            TODO.remove(COLOR.BLUE)
+            p += 2
+        elif factor_land[COLOR.YELLOW] > 30:
+            prio[COLOR.YELLOW] = [p, p+1]
+            TODO.remove(COLOR.YELLOW)
+            p += 2
+        #assign remaining:
+        while len(TODO) > 0:
+            idx = np.argmax(factor_land)
+            prio[idx] = [p, p+1]
+            TODO.remove(idx)
+            p += 2
+        
+        factor_sea = np.array([[6,4,2,0,8],
+                               [7,5,3,1,9]])
+        return np.concatenate((factor_land, factor_sea),axis=0)
+            
+    
+    def get_ground_target_priority(self):
+        '''
+        returns a priority table - shape 5 - 4
+        for each color (till black)
+        axis 2 - combined land and sea (both ground) with 2 positions for each stance assignment
+        contains the priority 0-low to 19-high for each unit
+        '''
+        if self.strategy['ground'] == Strategy.BlackToHighestValueFirst:
+            prio_land = np.argsort(self.options['unit_cost_equiv']['land']) * 2 # len 5 
+            prio_land_2 = np.argsort(self.options['unit_cost_equiv']['land']) * 2 + 1 # len 5 
+            prio_land = np.stack((prio_land, prio_land_2), axis=1)
+            
+            prio_sea  = np.argsort(self.options['unit_cost_equiv']['sea']) *2  +10
+            prio_sea_2  = np.argsort(self.options['unit_cost_equiv']['sea']) *2 +11
+            prio_sea = np.stack((prio_sea, prio_sea_2), axis=1)
+            prio = np.concatenate((prio_land, prio_sea),axis=1).T
+        elif self.strategy['ground'] == Strategy.ShadowywzsStrategy:
+            prio = self.calc_priorization_yuan_ming()
+        return prio
 
     def set_config(self, config):
         self.options = config

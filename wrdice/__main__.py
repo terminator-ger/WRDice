@@ -49,4 +49,4 @@ if __name__ == '__main__':
                     armyA=A,
                     armyB=B)
     sim.eval_statistics()
-    print(sim.get_report_short())
+    print(sim.get_report())

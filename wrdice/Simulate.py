@@ -15,6 +15,7 @@ from wrdice.Army import Army
 from wrdice.Battle import Battle
 from wrdice.config import *
 import sys
+import git
 
 def start_sim(in_, out_, q_intermediate):
     asyncio.run(Simulator(in_, out_, q_intermediate))
@@ -45,8 +46,10 @@ class Simulate:
                     config = None,
                     combat_system: Optional[CombatSystem] = None):
         with open(os.path.join(os.path.dirname(__file__), '../version')) as f:
-            version = f.read()
-            print(f"Using WRDice v.{version}")
+            version = f.read().rstrip(os.linesep)
+            repo = git.Repo(search_parent_directories=True)
+            sha = repo.head.object.hexsha
+            print(f"Using WRDice v.{version} - {sha[:8]}")
         
 
 
@@ -222,8 +225,8 @@ class Simulate:
 
         for n in tqdm(range(self.N)):
             self.cur_n = n
-            battle = Battle(copy.copy(self.army_a), 
-                            copy.copy(self.army_b),
+            battle = Battle(copy.deepcopy(self.army_a), 
+                            copy.deepcopy(self.army_b),
                             config)
             status = battle.run(combat_system=combat_system)
             #print(status)

@@ -1,3 +1,4 @@
+from pygments import highlight
 from wrdice.Army import Army
 from wrdice.D12Colored import D12Colored
 from wrdice.util import *
@@ -16,41 +17,7 @@ class Battle:
         self.battle_ground = None
         self.battle_air = None
         logging.basicConfig(level=logging.INFO)
-        self.priorized_targets = {'A': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW],
-                                  'B': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]}
 
-
-    def calc_priorized_targets(self):
-        ''' Algo by Yuan Ming @shadowymz -> boardgamegeek.com
-        '''
-        self.priorized_targets = {'A': [], 'B': []}
-        exp = {}
-        exp['A'] = self.army['A'].units[self.battle_ground] * np.array([3,4,6,0,0])
-        exp['B'] = self.army['B'].units[self.battle_ground] * np.array([3,4,6,0,0])
-        for trgt in ['A', 'B']:
-            ref = [COLOR.YELLOW, COLOR.BLUE, COLOR.GREEN]
-            
-            if exp[trgt][COLOR.GREEN] > 30:
-                self.priorized_targets[trgt] = [COLOR.GREEN]
-                ref[COLOR.GREEN] = None
-                exp[trgt][COLOR.GREEN] = 0
-                
-            elif exp[trgt][COLOR.BLUE] > 30:
-                self.priorized_targets[trgt] = [COLOR.BLUE]
-                ref[COLOR.BLUE] = None
-                ref[COLOR.BLUE] = None
-                exp[trgt][COLOR.YELLOW] = 0
-                
-            elif exp[trgt][COLOR.YELLOW] > 30:
-                self.priorized_targets[trgt] = [COLOR.YELLOW]
-                ref[COLOR.YELLOW] = None
-                exp[trgt][COLOR.YELLOW] = 0
-            else:
-                while not np.all(np.array(ref) == None):
-                    idx = np.argmax(exp[trgt])
-                    self.priorized_targets[trgt].append(ref[idx])
-                    ref[idx] = None
-                    exp[trgt][idx] = 0
         
 
     def get_num_colors_land(self, side):
@@ -229,45 +196,35 @@ class Battle:
 
                     hits_ground[color] -= 1
         
-        if self.battle_ground == 'sea':
-            ground_wild_targets = [COLOR.RED, COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]
-        else:
-            ground_wild_targets = [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]
 
-
-        if self.army[source].strategy['ground'] is None:
+        if self.army[target].strategy['ground'] is None:
             logging.warning("No Dice Strategy selected! - Using Highest Value first")
-            self.army[source].strategy['ground'] = Strategy.BlackToHighestValueFirst
+            self.army[target].strategy['ground'] = Strategy.BlackToHighestValueFirst
 
         if source in self.fa:
             if self.army[source].strategy['ground'] == Strategy.BlackToHighestValueFirst:
-                priority = np.argsort(unit_values)
+                priority = self.army[target].get_ground_target_priority()
                 #BLACK
-                for color in ground_wild_targets[::-1]:
-                    if hits_ground[COLOR.BLACK] == 0:
-                        break
-                    for p in priority[color][::-1]:
-                        if hits_ground[COLOR.BLACK] == 0:
-                            break
-                        while ground_hp[color][p] > 0 and hits_ground[COLOR.BLACK] > 0:
-                            ground_hp[color][p] -= 1
-                            hits_ground[COLOR.BLACK] -= 1
-                            if hits_ground[COLOR.BLACK] == 0:
-                                break
+                p = 0
+                while hits_ground[COLOR.BLACK] > 0 and p < 20:
+                    stance_idx, color_idx = np.argwhere(priority == p).squeeze()
+                    while (hits_ground[COLOR.BLACK] > 0 and \
+                            ground_hp[color_idx][stance_idx] > 0):
+                        ground_hp[color_idx][stance_idx] -= 1
+                        hits_ground[COLOR.BLACK] -= 1
+                    p += 1
+                        
 
                 #WHITE
-                for color in ground_wild_targets:
-                    if hits_ground[COLOR.WHITE] == 0:
-                        break
-                    for p in np.argsort(priority[color])[::-1]:
-                        if hits_ground[COLOR.WHITE] == 0:
-                            break
-                        while ground_hp[color][p] > 0 and hits_ground[COLOR.WHITE] > 0 and np.any(ground_hp[color][p] % unit_hp[p] ==1):
-                            ground_hp[color][p] -= 1
-                            hits_ground[COLOR.WHITE] -= 1
-                            if hits_ground[COLOR.WHITE] == 0:
-                                break
-                # as describred in his xlxs sheet
+                p = 0
+                while hits_ground[COLOR.WHITE] > 0 and p < 20:
+                    stance_idx, color_idx = np.argwhere(priority == p).squeeze()
+                    while (hits_ground[COLOR.WHITE] > 0 and \
+                            ground_hp[color_idx][stance_idx] > 0):
+                        ground_hp[color_idx][stance_idx] -= 1
+                        hits_ground[COLOR.WHITE] -= 1
+                    p += 1
+                        
                 
 
 
@@ -436,6 +393,7 @@ class Battle:
             self.army['A'].n_dice_ground = min(self.army['A'].n_dice_ground, cap)
             logging.debug(f"Batch Cap - Limiting Army A to {self.army['A'].n_dice_ground} dice")
 
+
     def run_warroomv2(self):
         if self.options['force_advantage']:
             self.fa = self.get_force_advantage()
@@ -498,7 +456,6 @@ class Battle:
             for T in type:
                 if self.army[A].units[T].sum() > 0:
                     self.battle_ground = T
-        #self.calc_priorized_targets()
 
         if combat_system == CombatSystem.WarRoomV2:
             self.run_warroomv2()
