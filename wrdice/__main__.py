@@ -21,22 +21,22 @@ if __name__ == '__main__':
     NO_UNITS = [0,0,0,0,0]
     ALL_UNITS = [-1,-1,-1,-1,-1]
 
-    B = Army(units_land = [5,3,2,0,0], 
-             units_air =  [0,0,4,1,0], 
+    B = Army(units_land = [1,2,3,0,0], 
+             units_air =  [0,0,0,0,0], 
              units_sea =  [0,0,0,0,0],
              options = config)
 
-    B.apply_stance(stance_land = [[-1,0,-1,0,0],     [0,-1,0,0,0]],
+    B.apply_stance(stance_land = [[0,2,1,0,0],     [1,0,2]],
                     stance_air = [NO_UNITS,    ALL_UNITS],
                     stance_sea = [NO_UNITS,    ALL_UNITS])
     print(f"B: air {B.n_dice_air} ground {B.n_dice_ground}")
 
-    A = Army(units_land = [5,2,3,0,0], 
-             units_air =  [0,0,3,0,0], 
+    A = Army(units_land = [10,4,4,0,0], 
+             units_air =  [0,0,0,0,0], 
              units_sea =  [0,0,0,0,0],
              options = config)
 
-    A.apply_stance(stance_land = [[-1,0,-1,0,0],     [0,-1,0,0,0]],
+    A.apply_stance(stance_land = [NO_UNITS,     ALL_UNITS],
                     stance_air = [NO_UNITS,     ALL_UNITS],
                     stance_sea = [ALL_UNITS,    NO_UNITS])
     

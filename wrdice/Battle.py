@@ -18,7 +18,13 @@ class Battle:
         logging.basicConfig(level=logging.INFO)
         self.priorized_targets = {'A': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW],
                                   'B': [COLOR.GREEN, COLOR.BLUE, COLOR.YELLOW]}
+        
+        self.p = np.array([4/12, 3/12, 2/12, 1/12, 1/12, 1/12])
+        self.P = np.cumsum(self.p)
+        self.batchsize=batchsize
 
+        self.dice_rolls = np.random.multinomial(2*2*3*10, pvals=self.p).reshape(2,2,3,10)
+ 
 
     def calc_priorized_targets(self):
         ''' Algo by Yuan Ming @shadowymz -> boardgamegeek.com
